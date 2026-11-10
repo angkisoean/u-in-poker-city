@@ -23,7 +23,6 @@ import {
   type AutoConnectResult,
 } from '@unicitylabs/sphere-sdk/connect/browser';
 import { UnicityWalletModal, type WalletTransactionRequest } from '../components/UnicityWalletModal';
-import { UnicityConnectModal } from '../components/UnicityConnectModal';
 import { useToast } from './ToastContext';
 import { APP_CONFIG } from '../config';
 
@@ -116,7 +115,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [hasWallet, setHasWallet] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [isConnectModalOpen, setIsConnectModalOpen] = useState<boolean>(false);
   const [activeTxRequest, setActiveTxRequest] = useState<WalletTransactionRequest | null>(null);
 
   const sphereClientRef = useRef<ConnectClient | null>(null);
@@ -141,10 +139,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       localStorage.removeItem(STORAGE_KEY);
     }
   }, [address, nametag, isConnected]);
-
-  const openConnectModal = useCallback(() => {
-    setIsConnectModalOpen(true);
-  }, []);
 
   /**
    * REAL-TIME SDK BALANCE FETCHER
@@ -550,6 +544,10 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     [address, isConnected, fetchLiveBalance, showToast]
   );
 
+  const openConnectModal = useCallback(() => {
+    connectWallet();
+  }, [connectWallet]);
+
   const value: WalletContextValue = {
     address,
     chainPubkey,
@@ -576,15 +574,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   return (
     <WalletContext.Provider value={value}>
       {children}
-
-      <UnicityConnectModal
-        isOpen={isConnectModalOpen}
-        onClose={() => setIsConnectModalOpen(false)}
-        onConnect={async (_type, tag) => {
-          await connectWallet(tag);
-        }}
-        isConnecting={isConnecting}
-      />
 
       <UnicityWalletModal
         request={activeTxRequest}
