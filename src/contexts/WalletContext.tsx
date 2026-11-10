@@ -145,12 +145,44 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
    */
   const fetchLiveBalance = useCallback(async (client?: ConnectClient | null): Promise<number> => {
     const activeClient = client || sphereClientRef.current;
+
+    // Check window.sphere direct API if injected
+    if (typeof window !== 'undefined') {
+      const win = window as unknown as { sphere?: { getBalance?: () => Promise<number | string>; request?: (args: { method: string }) => Promise<unknown> } };
+      if (win.sphere?.getBalance && typeof win.sphere.getBalance === 'function') {
+        try {
+          const directBal = await win.sphere.getBalance();
+          const parsed = Number(directBal) || 0;
+          setBalance(parsed);
+          return parsed;
+        } catch (e) {
+          console.debug('[Sphere Window Direct] getBalance error:', e);
+        }
+      }
+      if (win.sphere?.request && typeof win.sphere.request === 'function') {
+        try {
+          const reqBal = await win.sphere.request({ method: 'sphere_getBalance' });
+          if (typeof reqBal === 'number') {
+            setBalance(reqBal);
+            return reqBal;
+          }
+          if (reqBal && typeof reqBal === 'object' && 'balance' in reqBal) {
+            const parsed = Number((reqBal as { balance: string | number }).balance) || 0;
+            setBalance(parsed);
+            return parsed;
+          }
+        } catch (e) {
+          console.debug('[Sphere Window Request] sphere_getBalance error:', e);
+        }
+      }
+    }
+
     if (!activeClient || !activeClient.isConnected) {
       return 0;
     }
 
     try {
-      const raw = await activeClient.query<{ balance?: number | string; confirmed?: number | string } | number>(
+      const raw = await activeClient.query<{ balance?: number | string; confirmed?: number | string; total?: number | string; amount?: number | string } | number>(
         RPC_METHODS.GET_BALANCE
       );
 
@@ -160,12 +192,37 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       } else if (raw && typeof raw === 'object') {
         if ('balance' in raw) parsedBalance = Number(raw.balance) || 0;
         else if ('confirmed' in raw) parsedBalance = Number(raw.confirmed) || 0;
+        else if ('total' in raw) parsedBalance = Number(raw.total) || 0;
+        else if ('amount' in raw) parsedBalance = Number(raw.amount) || 0;
+      }
+
+      // Convert from base units if SDK returns satoshis / wei scale (e.g. 10^8 or 10^18)
+      if (parsedBalance > 1_000_000_000_000) {
+        parsedBalance = +(parsedBalance / 1e18).toFixed(4);
+      } else if (parsedBalance > 100_000_000 && parsedBalance % 100_000_000 === 0) {
+        parsedBalance = +(parsedBalance / 1e8).toFixed(4);
       }
 
       setBalance(parsedBalance);
       return parsedBalance;
     } catch (err) {
       console.warn('[Sphere SDK] Live balance query failed:', err);
+      // Fallback query to sphere_getTokens
+      try {
+        const tokensRaw = await activeClient.query<Array<{ symbol?: string; balance?: number | string }>>(
+          RPC_METHODS.GET_TOKENS
+        );
+        if (Array.isArray(tokensRaw)) {
+          const uct = tokensRaw.find((t) => t.symbol?.toUpperCase() === 'UCT');
+          if (uct && uct.balance) {
+            const parsed = Number(uct.balance) || 0;
+            setBalance(parsed);
+            return parsed;
+          }
+        }
+      } catch {
+        // ignore
+      }
       return 0;
     }
   }, []);

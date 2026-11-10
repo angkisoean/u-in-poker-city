@@ -141,32 +141,19 @@ export const TABLE_TIERS: TableTier[] = [
   },
 ];
 
-// Generates 10 realistic tables for each of the 4 table districts
+// Generates tables with real live seat occupancy (starts 0/6 until real players sit)
 export function generateDistrictTables(tier: TableTier): SubTableInfo[] {
-  const presets = [
-    { count: 2, status: 'In Hand' as const },
-    { count: 3, status: 'In Hand' as const },
-    { count: 4, status: 'In Hand' as const },
-    { count: 2, status: 'Waiting' as const },
-    { count: 5, status: 'In Hand' as const },
-    { count: 3, status: 'Waiting' as const },
-    { count: 6, status: 'In Hand' as const },
-    { count: 2, status: 'In Hand' as const },
-    { count: 4, status: 'Waiting' as const },
-    { count: 3, status: 'In Hand' as const },
-  ];
-
-  return presets.map((p, idx) => {
+  return Array.from({ length: 10 }, (_, idx) => {
     const num = idx + 1;
     const numStr = num < 10 ? `0${num}` : `${num}`;
     return {
       id: `${tier.id}-t${num}`,
       tableNumber: num,
       name: `Table #${numStr}`,
-      playersCount: p.count,
+      playersCount: 0,
       maxSeats: 6,
-      status: p.status,
-      avgPot: +(tier.bigBlind * (p.count * 2.8)).toFixed(2),
+      status: 'Waiting',
+      avgPot: 0,
     };
   });
 }
@@ -279,22 +266,8 @@ export const Lobby: React.FC<LobbyProps> = ({
           </div>
         </div>
 
-        {/* Wallet Info Badge, Faucet & Disconnect */}
+        {/* Wallet Info Badge & Disconnect */}
         <div className="flex items-center gap-2.5">
-          {/* Testnet Faucet Button */}
-          <button
-            onClick={() => {
-              wallet.claimFaucet(5000);
-            }}
-            disabled={wallet.isProcessing}
-            className="py-1.5 px-3 rounded-xl bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/40 text-orange-400 hover:text-orange-300 text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Claim 5,000 free UCT tokens"
-          >
-            <span>🚰</span>
-            <span className="hidden sm:inline">+5,000</span>
-            <span>UCT Faucet</span>
-          </button>
-
           <div className="flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-[#16191F]/90 border border-white/[0.08] backdrop-blur-md shadow-sm">
             <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.7)]" />
             <div className="flex flex-col text-right">
@@ -720,8 +693,8 @@ export const Lobby: React.FC<LobbyProps> = ({
                 <div className="mb-4 p-3 rounded-2xl bg-red-950/40 border border-red-500/50 text-red-300 text-xs font-mono flex items-center gap-2">
                   <span>⚠️</span>
                   <span>
-                    Insufficient balance. You have {walletBalance.toFixed(2)} UCT, but selected{' '}
-                    {buyInAmount} UCT. Use the Faucet button above to claim more.
+                    Insufficient balance. You have {walletBalance.toFixed(2)} UCT in your wallet, but selected{' '}
+                    {buyInAmount} UCT. Please deposit UCT to your Unicity wallet.
                   </span>
                 </div>
               )}
