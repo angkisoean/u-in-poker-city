@@ -43,12 +43,27 @@ class PokerNetworkRelay {
   private socket: Socket | null = null;
   private currentTableId: string | null = null;
   private listeners: Map<string, Set<NetworkEventCallback>> = new Map();
+  private broadcastChannel: BroadcastChannel | null = null;
   private relayUrl: string;
 
   constructor() {
     this.relayUrl =
       import.meta.env.VITE_POKER_RELAY_URL ||
       (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:3001` : 'http://localhost:3001');
+
+    if (typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined') {
+      try {
+        this.broadcastChannel = new BroadcastChannel('u_in_poker_city_p2p_channel');
+        this.broadcastChannel.onmessage = (event: MessageEvent) => {
+          const { type, data } = (event.data as { type?: string; data?: unknown }) || {};
+          if (type) {
+            this.emitInternal(type, data);
+          }
+        };
+      } catch (e) {
+        console.warn('[PokerNetworkRelay] BroadcastChannel not supported:', e);
+      }
+    }
   }
 
   public connect(url?: string): Socket {
@@ -103,7 +118,16 @@ class PokerNetworkRelay {
     return this.socket;
   }
 
-  public joinTable(tableId: string, player: { id: string; name: string; walletAddress: string; chips: number; nametag?: string }): void {
+  public broadcast(event: string, data: unknown): void {
+    this.emitInternal(event, data);
+    try {
+      this.broadcastChannel?.postMessage({ type: event, data });
+    } catch {
+      // ignore serialization errors
+    }
+  }
+
+  public joinTable(tableId: string, player: { id: string; name: string; walletAddress?: string; chips: number; nametag?: string; seatIndex?: number }): void {
     this.currentTableId = tableId;
     if (this.socket && this.socket.connected) {
       this.socket.emit('JOIN_TABLE', { tableId, player });
@@ -111,28 +135,42 @@ class PokerNetworkRelay {
       this.connect();
       this.socket?.emit('JOIN_TABLE', { tableId, player });
     }
+    // Instant real-time broadcast across local session and peer tabs/windows
+    this.broadcast('PLAYER_JOINED', { tableId, player, seatIndex: player.seatIndex ?? 0 });
   }
 
   public leaveTable(tableId?: string): void {
     const tid = tableId || this.currentTableId;
-    if (tid && this.socket && this.socket.connected) {
-      // Auto-fold in flight so other players continue instantly without waiting
-      this.socket.emit('PLAYER_ACTION', { tableId: tid, action: { type: 'fold' } });
-      this.socket.emit('LEAVE_TABLE', { tableId: tid });
+    if (tid) {
+      if (this.socket && this.socket.connected) {
+        // Auto-fold in flight so other players continue instantly without waiting
+        this.socket.emit('PLAYER_ACTION', { tableId: tid, action: { type: 'fold' } });
+        this.socket.emit('LEAVE_TABLE', { tableId: tid });
+      }
+      this.broadcast('PLAYER_LEFT', { tableId: tid, seatIndex: 0 });
     }
     this.currentTableId = null;
   }
 
   public sendAction(action: ActionPayload, stateChannelSignature?: string): void {
     if (!this.currentTableId) return;
+    const payload = {
+      tableId: this.currentTableId,
+      action,
+      signature: stateChannelSignature,
+      timestamp: Date.now(),
+    };
     if (this.socket && this.socket.connected) {
-      this.socket.emit('PLAYER_ACTION', {
-        tableId: this.currentTableId,
-        action,
-        signature: stateChannelSignature,
-        timestamp: Date.now(),
-      });
+      this.socket.emit('PLAYER_ACTION', payload);
     }
+    this.broadcast('ACTION_SUBMITTED', payload);
+  }
+
+  public syncTableState(sync: Partial<NetworkTableSync>): void {
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('TABLE_STATE_SYNC', sync);
+    }
+    this.broadcast('TABLE_STATE_SYNC', sync);
   }
 
   public requestActiveTables(): void {

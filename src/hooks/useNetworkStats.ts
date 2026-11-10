@@ -63,11 +63,15 @@ export function useNetworkStats(): NetworkStats {
     });
 
     const unsubLeft = pokerNetwork.on('PLAYER_LEFT', () => {
-      setStats((prev) => ({
-        ...prev,
-        totalPlayers: Math.max(0, prev.totalPlayers - 1),
-        isLive: true,
-      }));
+      setStats((prev) => {
+        const nextPlayers = Math.max(0, prev.totalPlayers - 1);
+        return {
+          ...prev,
+          totalPlayers: nextPlayers,
+          activeTablesCount: nextPlayers === 0 ? 0 : Math.max(0, prev.activeTablesCount - (nextPlayers === 0 ? 1 : 0)),
+          isLive: true,
+        };
+      });
     });
 
     const unsubConn = pokerNetwork.on('relay:connected', () => {

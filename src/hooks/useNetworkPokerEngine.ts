@@ -158,29 +158,32 @@ export function useNetworkPokerEngine({
   // If hero enters and seat 0 is empty, seat hero in real network state
   useEffect(() => {
     if (!heroAddress) return;
+    const heroSeat: Player = {
+      id: heroAddress,
+      seatIndex: 0,
+      name: heroNametag ? heroNametag.replace(/^@/, '') : `User_${heroAddress.slice(2, 6)}`,
+      walletAddress: heroAddress,
+      balance: heroBuyIn,
+      chips: heroBuyIn,
+      currentBet: 0,
+      totalBetInRound: 0,
+      totalBetInHand: 0,
+      isActive: true,
+      isFolded: false,
+      hasFolded: false,
+      isAllIn: false,
+      isConnected: true,
+      cards: [],
+      holeCards: [],
+    };
+
+    pokerNetwork.joinTable(tableId, heroSeat);
+
     setSyncedState((prev) => {
       const alreadySeated = prev.players.some((p) => p && p.walletAddress?.toLowerCase() === heroAddress.toLowerCase());
       if (alreadySeated) return prev;
 
       const nextPlayers = [...prev.players];
-      const heroSeat: Player = {
-        id: 'hero',
-        seatIndex: 0,
-        name: heroNametag ? heroNametag.replace(/^@/, '') : `User_${heroAddress.slice(2, 6)}`,
-        walletAddress: heroAddress,
-        balance: heroBuyIn,
-        chips: heroBuyIn,
-        currentBet: 0,
-        totalBetInRound: 0,
-        totalBetInHand: 0,
-        isActive: true,
-        isFolded: false,
-        hasFolded: false,
-        isAllIn: false,
-        isConnected: true,
-        cards: [],
-        holeCards: [],
-      };
       nextPlayers[0] = {
         ...heroSeat,
         walletAddress: heroSeat.walletAddress || '',
@@ -191,7 +194,11 @@ export function useNetworkPokerEngine({
         players: nextPlayers,
       };
     });
-  }, [heroAddress, heroNametag, heroBuyIn]);
+
+    return () => {
+      pokerNetwork.leaveTable(tableId);
+    };
+  }, [tableId, heroAddress, heroNametag, heroBuyIn]);
 
   // Compute real legal actions for hero
   const validActions: ValidAction[] = [];
