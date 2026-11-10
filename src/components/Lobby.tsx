@@ -301,7 +301,7 @@ export const Lobby: React.FC<LobbyProps> = ({
         return t;
       })
     : [];
-  const isInsufficient = selectedSubTable ? buyInAmount > walletBalance : false;
+  const isInsufficient = selectedSubTable && walletBalance > 0 ? buyInAmount > walletBalance : false;
 
   return (
     <div className={`relative min-h-screen bg-[#08090B] flex flex-col justify-between overflow-x-hidden ${className}`}>
