@@ -120,7 +120,7 @@ export const UnicityWalletModal: React.FC<UnicityWalletModalProps> = ({
                 </span>
                 <span className="text-[10px] font-mono text-zinc-500 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Unicity L1 (Chain ID: 8889)
+                  Unicity Testnet (0x2329)
                 </span>
               </div>
             </div>
@@ -156,7 +156,7 @@ export const UnicityWalletModal: React.FC<UnicityWalletModalProps> = ({
                     </div>
                   </div>
                   <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/25 font-medium">
-                    {isDeposit ? 'ESCROW LOCK' : isSettle ? 'SETTLEMENT' : 'TX SIGN'}
+                    {isDeposit ? 'ESCROW LOCK' : isSettle ? 'SETTLEMENT' : isConnect ? 'SIGN IN' : 'TX SIGN'}
                   </span>
                 </div>
 
@@ -170,74 +170,101 @@ export const UnicityWalletModal: React.FC<UnicityWalletModalProps> = ({
                   </div>
                 )}
 
-                {/* Transaction Amount Breakdown Box */}
-                <div className="rounded-xl bg-zinc-900/70 border border-white/[0.06] p-3.5 flex flex-col gap-2 font-mono text-xs">
-                  {isDeposit && (
-                    <>
-                      <div className="flex justify-between items-center">
-                        <span className="text-zinc-400">Escrow Buy-In:</span>
-                        <span className="font-bold text-zinc-100 text-sm">
-                          {request.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} UCT
-                        </span>
+                {isConnect ? (
+                  <div className="rounded-xl bg-zinc-900/70 border border-white/[0.06] p-3.5 flex flex-col gap-2 font-mono text-xs">
+                    <div className="flex justify-between items-center text-zinc-400">
+                      <span>Action:</span>
+                      <span className="font-bold text-orange-400">Signature Verification</span>
+                    </div>
+                    <div className="flex justify-between items-center text-zinc-400">
+                      <span>Enforced Network:</span>
+                      <span className="text-zinc-200">Unicity Testnet (0x2329)</span>
+                    </div>
+                    <div className="flex flex-col gap-1 mt-1">
+                      <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">
+                        Message to Sign:
+                      </span>
+                      <div className="p-2.5 rounded-lg bg-black/60 border border-zinc-800 text-[11px] text-zinc-300 font-mono break-all whitespace-pre-wrap leading-relaxed select-text max-h-36 overflow-y-auto">
+                        {request.memo || 'Sign to verify wallet ownership and enter U IN POKER CITY.'}
                       </div>
-                      <div className="flex justify-between items-center text-[11px]">
-                        <span className="text-zinc-400">Unicity DeFi Staking:</span>
-                        <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          12.0% APY Active
-                        </span>
-                      </div>
-                    </>
-                  )}
-
-                  {isSettle && (
-                    <>
-                      <div className="flex justify-between items-center">
-                        <span className="text-zinc-400">Table Chip Stack:</span>
-                        <span className="font-bold text-zinc-100">
-                          {request.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} UCT
-                        </span>
-                      </div>
-                      {request.yieldEarned !== undefined && (
-                        <div className="flex justify-between items-center text-emerald-400">
-                          <span>Staking Yield Earned:</span>
-                          <span className="font-bold">
-                            +{request.yieldEarned.toFixed(4)} UCT ✨
-                          </span>
-                        </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 pt-1.5 border-t border-zinc-800">
+                      <span>🛡️</span>
+                      <span>Gas Fee: 0 UCT • Cryptographic handshake proof</span>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Transaction Amount Breakdown Box */}
+                    <div className="rounded-xl bg-zinc-900/70 border border-white/[0.06] p-3.5 flex flex-col gap-2 font-mono text-xs">
+                      {isDeposit && (
+                        <>
+                          <div className="flex justify-between items-center">
+                            <span className="text-zinc-400">Escrow Buy-In:</span>
+                            <span className="font-bold text-zinc-100 text-sm">
+                              {request.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} UCT
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center text-[11px]">
+                            <span className="text-zinc-400">Unicity DeFi Staking:</span>
+                            <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              12.0% APY Active
+                            </span>
+                          </div>
+                        </>
                       )}
-                      <div className="flex justify-between items-center pt-1.5 border-t border-zinc-800 text-orange-400 font-bold text-sm">
-                        <span>Total Payout:</span>
-                        <span>
-                          {(request.totalPayout ?? (request.amount + (request.yieldEarned ?? 0))).toFixed(4)} UCT
+
+                      {isSettle && (
+                        <>
+                          <div className="flex justify-between items-center">
+                            <span className="text-zinc-400">Table Chip Stack:</span>
+                            <span className="font-bold text-zinc-100">
+                              {request.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} UCT
+                            </span>
+                          </div>
+                          {request.yieldEarned !== undefined && (
+                            <div className="flex justify-between items-center text-emerald-400">
+                              <span>Staking Yield Earned:</span>
+                              <span className="font-bold">
+                                +{request.yieldEarned.toFixed(4)} UCT ✨
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex justify-between items-center pt-1.5 border-t border-zinc-800 text-orange-400 font-bold text-sm">
+                            <span>Total Payout:</span>
+                            <span>
+                              {(request.totalPayout ?? (request.amount + (request.yieldEarned ?? 0))).toFixed(4)} UCT
+                            </span>
+                          </div>
+                        </>
+                      )}
+
+                      <div className="flex justify-between items-center pt-2 border-t border-zinc-800 text-[11px]">
+                        <span className="text-zinc-500">Estimated Network Fee:</span>
+                        <span className="text-zinc-400">~{gas} UCT ($0.0001)</span>
+                      </div>
+                    </div>
+
+                    {/* Contract Interaction Details */}
+                    <div className="p-2.5 rounded-xl bg-zinc-900/50 border border-white/[0.04] flex flex-col gap-1 text-[10px] font-mono text-zinc-500">
+                      <div className="flex justify-between">
+                        <span>Contract:</span>
+                        <span className="text-zinc-400" title={request.contractAddress || '0xUNI_POKER_ESCROW_CONTRACT_9921'}>
+                          {formatAddr(request.contractAddress || '0xUNI_POKER_ESCROW_CONTRACT_9921')}
                         </span>
                       </div>
-                    </>
-                  )}
-
-                  <div className="flex justify-between items-center pt-2 border-t border-zinc-800 text-[11px]">
-                    <span className="text-zinc-500">Estimated Network Fee:</span>
-                    <span className="text-zinc-400">~{gas} UCT ($0.0001)</span>
-                  </div>
-                </div>
-
-                {/* Contract Interaction Details */}
-                <div className="p-2.5 rounded-xl bg-zinc-900/50 border border-white/[0.04] flex flex-col gap-1 text-[10px] font-mono text-zinc-500">
-                  <div className="flex justify-between">
-                    <span>Contract:</span>
-                    <span className="text-zinc-400" title={request.contractAddress || '0xUNI_POKER_ESCROW_CONTRACT_9921'}>
-                      {formatAddr(request.contractAddress || '0xUNI_POKER_ESCROW_CONTRACT_9921')}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Method:</span>
-                    <span className="text-orange-400">{request.method || 'depositEscrow(uint256)'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Security:</span>
-                    <span className="text-emerald-400">✓ Verified ZK-STARK State Channel</span>
-                  </div>
-                </div>
+                      <div className="flex justify-between">
+                        <span>Method:</span>
+                        <span className="text-orange-400">{request.method || 'depositEscrow(uint256)'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Security:</span>
+                        <span className="text-emerald-400">✓ Verified ZK-STARK State Channel</span>
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* Action Buttons: Reject vs Sign & Confirm */}
                 <div className="grid grid-cols-2 gap-3 mt-1">
@@ -252,7 +279,7 @@ export const UnicityWalletModal: React.FC<UnicityWalletModalProps> = ({
                     className="py-2.5 rounded-xl bg-orange-500 hover:bg-orange-400 text-black font-sans font-semibold text-xs tracking-wide uppercase transition-all shadow-md shadow-orange-500/20 active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <span>✍️</span>
-                    <span>Sign & Confirm</span>
+                    <span>{isConnect ? 'Sign & Connect' : 'Sign & Confirm'}</span>
                   </button>
                 </div>
               </>
