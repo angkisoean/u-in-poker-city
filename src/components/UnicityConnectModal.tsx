@@ -16,7 +16,7 @@ export const UnicityConnectModal: React.FC<UnicityConnectModalProps> = ({
   isConnecting = false,
 }) => {
   const [selectedMethod, setSelectedMethod] = useState<'extension' | 'web_wallet'>('extension');
-  const [nametag, setNametag] = useState<string>('satoshi_neo');
+  const [nametag, setNametag] = useState<string>('');
   const [network, setNetwork] = useState<'testnet' | 'mainnet'>('testnet');
   const [isApproving, setIsApproving] = useState<boolean>(false);
 
@@ -31,7 +31,9 @@ export const UnicityConnectModal: React.FC<UnicityConnectModalProps> = ({
   const handleApprove = async () => {
     try {
       setIsApproving(true);
-      await onConnect(selectedMethod, nametag.startsWith('@') ? nametag : `@${nametag}`);
+      const cleanTag = nametag.trim();
+      const finalTag = cleanTag ? (cleanTag.startsWith('@') ? cleanTag : `@${cleanTag}`) : undefined;
+      await onConnect(selectedMethod, finalTag);
       onClose();
     } catch (err) {
       console.error('Sphere connection approval error:', err);

@@ -10,9 +10,9 @@ export interface NetworkStats {
 
 export function useNetworkStats(): NetworkStats {
   const [stats, setStats] = useState<NetworkStats>({
-    totalPlayers: 1247,
-    activeTablesCount: 40,
-    totalVolume: 1428500,
+    totalPlayers: 0,
+    activeTablesCount: 0,
+    totalVolume: 0,
     isLive: false,
   });
 
@@ -29,23 +29,27 @@ export function useNetworkStats(): NetworkStats {
         const activeTables = tables.filter((t) => (t.count || 0) > 0).length;
         const volumeSum = tables.reduce((acc, t) => acc + (t.avgPot || 0), 0);
 
-        setStats((prev) => ({
-          totalPlayers: Math.max(1247 + seatedPlayers, prev.totalPlayers),
-          activeTablesCount: activeTables > 0 ? activeTables : 40,
-          totalVolume: prev.totalVolume + volumeSum,
+        setStats({
+          totalPlayers: seatedPlayers,
+          activeTablesCount: activeTables,
+          totalVolume: volumeSum,
           isLive: true,
-        }));
+        });
       }
     });
 
     const unsubState = pokerNetwork.on('TABLE_STATE_SYNC', (data: unknown) => {
       const sync = data as { pot?: number; players?: unknown[] };
-      if (sync && sync.pot) {
-        setStats((prev) => ({
-          ...prev,
-          totalVolume: prev.totalVolume + sync.pot!,
-          isLive: true,
-        }));
+      if (sync) {
+        setStats((prev) => {
+          const seated = Array.isArray(sync.players) ? sync.players.filter(Boolean).length : prev.totalPlayers;
+          return {
+            ...prev,
+            totalPlayers: Math.max(seated, prev.totalPlayers),
+            totalVolume: sync.pot && sync.pot > 0 ? Math.max(prev.totalVolume, sync.pot) : prev.totalVolume,
+            isLive: true,
+          };
+        });
       }
     });
 
@@ -53,6 +57,7 @@ export function useNetworkStats(): NetworkStats {
       setStats((prev) => ({
         ...prev,
         totalPlayers: prev.totalPlayers + 1,
+        activeTablesCount: Math.max(1, prev.activeTablesCount),
         isLive: true,
       }));
     });
@@ -60,31 +65,21 @@ export function useNetworkStats(): NetworkStats {
     const unsubLeft = pokerNetwork.on('PLAYER_LEFT', () => {
       setStats((prev) => ({
         ...prev,
-        totalPlayers: Math.max(1, prev.totalPlayers - 1),
+        totalPlayers: Math.max(0, prev.totalPlayers - 1),
         isLive: true,
       }));
     });
 
-    // Real-time live network activity simulation reflecting live state channels
-    const interval = setInterval(() => {
-      setStats((prev) => {
-        const deltaVol = Math.floor(Math.random() * 35) * 10;
-        const deltaPlayers = Math.random() > 0.6 ? (Math.random() > 0.48 ? 1 : -1) : 0;
-        return {
-          ...prev,
-          totalPlayers: Math.max(1220, prev.totalPlayers + deltaPlayers),
-          totalVolume: prev.totalVolume + deltaVol,
-          isLive: true,
-        };
-      });
-    }, 3500);
+    const unsubConn = pokerNetwork.on('relay:connected', () => {
+      setStats((prev) => ({ ...prev, isLive: true }));
+    });
 
     return () => {
       unsubTables();
       unsubState();
       unsubJoin();
       unsubLeft();
-      clearInterval(interval);
+      unsubConn();
     };
   }, []);
 

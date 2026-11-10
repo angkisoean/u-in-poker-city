@@ -240,10 +240,10 @@ export const Landing: React.FC<LandingProps> = ({
           className="max-w-3xl mx-auto bg-[#14161B]/85 backdrop-blur-xl border border-white/[0.08] rounded-2xl py-3 px-6 flex flex-wrap items-center justify-around gap-4 text-center shadow-lg"
         >
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10B981]" />
+            <span className={`w-2 h-2 rounded-full ${stats.isLive ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_#10B981]' : 'bg-zinc-600'}`} />
             <span className="text-xs font-mono text-zinc-400">Testnet Players:</span>
             <span className="text-xs font-mono font-bold text-zinc-100">
-              {stats.totalPlayers.toLocaleString()}
+              {stats.totalPlayers}
             </span>
           </div>
 
@@ -253,7 +253,7 @@ export const Landing: React.FC<LandingProps> = ({
             <span className="text-orange-400 text-xs">♠</span>
             <span className="text-xs font-mono text-zinc-400">Active Tables:</span>
             <span className="text-xs font-mono font-bold text-orange-400">
-              {stats.activeTablesCount} (4 Districts)
+              {stats.activeTablesCount} Active (40 Total)
             </span>
           </div>
 
@@ -263,7 +263,7 @@ export const Landing: React.FC<LandingProps> = ({
             <span className="text-orange-400 text-xs">✨</span>
             <span className="text-xs font-mono text-zinc-400">Testnet UCT Volume:</span>
             <span className="text-xs font-mono font-bold text-orange-400">
-              {stats.totalVolume.toLocaleString()} UCT
+              {stats.totalVolume.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} UCT
             </span>
           </div>
         </motion.div>

@@ -61,62 +61,7 @@ const RING_6MAX_BETS: Record<number, BetPlacement> = {
   5: { seatIndex: 5, top: '56%', left: '73%' },
 };
 
-const DEFAULT_MOCK_PLAYERS: (Player | null)[] = [
-  {
-    id: 'hero',
-    name: 'Satoshi_Neo',
-    walletAddress: '0x71C8394b2A43d5268c70f612d7c0fE668b94f9A',
-    balance: 250,
-    chips: 250,
-    isActive: true,
-    cards: [
-      { suit: 'clubs', rank: '10', isFaceUp: true },
-      { suit: 'clubs', rank: 'J', isFaceUp: true },
-    ],
-    holeCards: [
-      { suit: 'clubs', rank: '10', isFaceUp: true },
-      { suit: 'clubs', rank: 'J', isFaceUp: true },
-    ],
-    currentBet: 0.2,
-    totalBetInRound: 0.2,
-    hasFolded: false,
-    isConnected: true,
-    isFolded: false,
-    isAllIn: false,
-    isDealer: false,
-    isSmallBlind: false,
-    isBigBlind: false,
-    isTurn: true,
-    seatIndex: 0,
-  },
-  {
-    id: 'p2',
-    name: 'CyberViper',
-    walletAddress: '0xBot_CyberViper_000000000000000000000004',
-    balance: 290,
-    chips: 290,
-    isActive: true,
-    cards: [
-      { suit: 'spades', rank: 'A', isFaceUp: false },
-      { suit: 'hearts', rank: 'A', isFaceUp: false },
-    ],
-    holeCards: [
-      { suit: 'spades', rank: 'A', isFaceUp: false },
-      { suit: 'hearts', rank: 'A', isFaceUp: false },
-    ],
-    currentBet: 0.2,
-    totalBetInRound: 0.2,
-    hasFolded: false,
-    isConnected: true,
-    isFolded: false,
-    isAllIn: false,
-    isDealer: true,
-    isSmallBlind: false,
-    isBigBlind: false,
-    isTurn: false,
-    seatIndex: 3,
-  },
-];
+const EMPTY_SEATS: (Player | null)[] = [null, null, null, null, null, null];
 
 export const PokerTable: React.FC<PokerTableProps> = ({
   tableState: propTableState,
@@ -128,8 +73,8 @@ export const PokerTable: React.FC<PokerTableProps> = ({
   isActionPending = false,
   className = '',
 }) => {
-  // Derive table state from single source of truth
-  const players = propTableState?.players || DEFAULT_MOCK_PLAYERS;
+  // Derive table state from single source of truth - strictly empty seats if no real players
+  const players = propTableState?.players || EMPTY_SEATS;
   const communityCards = propTableState?.communityCards || [];
   const pot = propTableState?.pot ?? 0;
   const currentBet = propTableState?.currentBet ?? 0;
