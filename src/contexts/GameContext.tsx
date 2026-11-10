@@ -7,7 +7,7 @@ import React, {
   type ReactNode,
 } from 'react';
 import { useWallet } from './WalletContext';
-import { usePokerEngine } from '../hooks/usePokerEngine';
+import { useNetworkPokerEngine } from '../hooks/useNetworkPokerEngine';
 import { useYield } from '../hooks/useYield';
 import { useTiltMeter, type UseTiltMeterReturn } from '../hooks/useTiltMeter';
 import { useToast } from './ToastContext';
@@ -21,10 +21,7 @@ import {
   type TableState,
   type GameStage,
   type ActionPayload,
-  type ActionType,
-  type GameConfig,
   GameState,
-  PlayerAction,
 } from '../engine/types';
 
 export interface GameContextValue {
@@ -33,7 +30,7 @@ export interface GameContextValue {
   buyInAmount: number;
   gameState: GameState;
   stage: GameStage;
-  players: Player[];
+  players: (Player | null)[];
   communityCards: Card[];
   pot: number;
   currentBet: number;
@@ -50,75 +47,12 @@ export interface GameContextValue {
   yieldRate: number;
   totalChipValue: number;
   tiltMeter: UseTiltMeterReturn;
+  isOnlineRelayConnected: boolean;
   joinTable: (tier: TableTier, buyIn: number) => Promise<void>;
   leaveTable: () => Promise<number>;
-  performAction: (action: PlayerAction | ActionType | ActionPayload, amount?: number) => void;
+  performAction: (action: ActionPayload) => Promise<void>;
   startNewHand: () => void;
-  seatPlayerAt: (seatIndex: number, name?: string, avatar?: string) => void;
-}
-
-const DEFAULT_TIER: TableTier = {
-  id: 'table-low',
-  name: 'Table 2: Neon Street',
-  tierName: 'Tier 2: 100 - 1,000',
-  buyInMin: 100,
-  buyInMax: 1000,
-  smallBlind: 5.0,
-  bigBlind: 10.0,
-  icon: '♣️',
-  colorGradient: 'orange',
-  activePlayers: 132,
-  maxPlayers: 6,
-  tablesCount: 10,
-};
-
-const DEFAULT_CONFIG: GameConfig = {
-  tableTier: DEFAULT_TIER,
-  maxPlayers: 6,
-  timeBank: 20,
-};
-
-// Cyber AI Bot Opponents
-const AI_ROSTER = [
-  { id: 'bot-1', name: 'CyberViper', avatar: '🐍', tiltLevel: 35 },
-  { id: 'bot-2', name: 'NeonSamurai', avatar: '⚔️', tiltLevel: 15 },
-  { id: 'bot-3', name: 'ZK_Phantom', avatar: '👻', tiltLevel: 42 },
-  { id: 'bot-4', name: 'Satoshi_Ghost', avatar: '⚡', tiltLevel: 20 },
-  { id: 'bot-5', name: 'GlitchQueen', avatar: '👑', tiltLevel: 65 },
-];
-
-function generateOpponents(tier: TableTier, heroBuyIn: number): Player[] {
-  const opponentCount = Math.max(1, Math.min(5, tier.activePlayers ? tier.activePlayers - 1 : 1));
-  const assignedSeats = [3, 1, 4, 2, 5];
-
-  return AI_ROSTER.slice(0, opponentCount).map((bot, idx) => {
-    const seatIndex = assignedSeats[idx] || (idx + 1);
-    const variance = (Math.random() * 0.2 - 0.1) * heroBuyIn;
-    const chips = Math.max(tier.buyInMin, +(heroBuyIn + variance).toFixed(2));
-    const walletAddress = `0xBot_${bot.id.replace(/[^a-zA-Z0-9]/g, '')}_${seatIndex}`.padEnd(42, '0');
-
-    return {
-      seatIndex,
-      walletAddress,
-      balance: chips,
-      isActive: true,
-      cards: [],
-      currentBet: 0,
-      id: bot.id,
-      name: bot.name,
-      avatar: bot.avatar,
-      chips,
-      holeCards: [],
-      totalBetInRound: 0,
-      totalBetInHand: 0,
-      hasFolded: false,
-      isFolded: false,
-      isAllIn: false,
-      isConnected: true,
-      tiltLevel: bot.tiltLevel,
-      isWaitingForNextHand: false,
-    };
-  });
+  seatPlayerAt: (seatIndex: number) => void;
 }
 
 const GameContext = createContext<GameContextValue | undefined>(undefined);
@@ -128,7 +62,7 @@ export interface GameProviderProps {
 }
 
 export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
-  const { address, nametag, promptTransaction, depositYield, isProcessing: isWalletBusy } = useWallet();
+  const { address, nametag, promptTransaction, depositYield, isProcessing: isWalletBusy, signMessage } = useWallet();
   const { showToast } = useToast();
 
   const [isSeated, setIsSeated] = useState<boolean>(false);
@@ -137,37 +71,9 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   const [seatedTimestamp, setSeatedTimestamp] = useState<number>(0);
   const [isActionPending, setIsActionPending] = useState<boolean>(false);
 
-  // Tilt Meter integration
   const tiltMeter = useTiltMeter(20);
 
-  // Initial player list
-  const defaultPlayers: Player[] = useMemo(() => {
-    const heroAddress = address || '0x71C8394b2A43d5268c70f612d7c0fE668b94f9A';
-    const heroName = nametag ? nametag.replace(/^@/, '') : address ? `Neo_${address.slice(2, 6)}` : 'Satoshi_Hero';
-    const hero: Player = {
-      seatIndex: 0,
-      walletAddress: heroAddress,
-      balance: 500,
-      isActive: true,
-      cards: [],
-      currentBet: 0,
-      id: 'hero',
-      name: heroName,
-      address: heroAddress,
-      chips: 500,
-      holeCards: [],
-      totalBetInRound: 0,
-      totalBetInHand: 0,
-      hasFolded: false,
-      isFolded: false,
-      isAllIn: false,
-      isConnected: true,
-      tiltLevel: 15,
-    };
-    return [hero, ...generateOpponents(DEFAULT_TIER, 500)];
-  }, [address, nametag]);
-
-  // Core poker engine hook
+  // Networked Poker Engine Hook - strictly online multiplayer, NO OFFLINE BOTS
   const {
     tableState,
     players,
@@ -183,19 +89,19 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     stage,
     winners,
     isDealing,
+    isOnlineRelayConnected,
     handleAction,
     startNewHand,
-    resetGame,
-    addPlayer,
-  } = usePokerEngine({
-    config: DEFAULT_CONFIG,
-    initialPlayers: defaultPlayers,
-    heroId: 'hero',
-    autoAdvanceAi: true,
-    aiDelayMs: 1400,
+    seatPlayerAt,
+  } = useNetworkPokerEngine({
+    tableTier: activeTier,
+    tableId: activeTier ? `table-${activeTier.id}` : 'table-live-1',
+    heroAddress: address,
+    heroNametag: nametag,
+    heroBuyIn: buyInAmount,
+    signMessage,
   });
 
-  // Real-time DeFi yield on seated buy-in (~12% APY, updates every second)
   const { yieldEarned, yieldRate } = useYield(
     isSeated ? buyInAmount : 0,
     seatedTimestamp,
@@ -203,7 +109,7 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   );
 
   /**
-   * Join a poker table: locks buy-in via wallet transaction, seats hero with bots ONLY AFTER SUCCESS
+   * Real Network Table Join: signs escrow deposit on Unicity Testnet
    */
   const joinTable = useCallback(
     async (tier: TableTier, buyIn: number) => {
@@ -218,11 +124,10 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
 
       setIsActionPending(true);
       try {
-        // 1. Lock buy-in tokens via Unicity wallet transaction popup
         const tableContractAddress = APP_CONFIG.tableFactoryAddress;
         await promptTransaction({
           type: 'deposit_escrow',
-          title: 'Sign Escrow Lock (Table Buy-In)',
+          title: 'Sign Escrow Lock (Live Table Buy-In)',
           tableName: tier.name,
           contractAddress: tableContractAddress,
           method: 'depositBuyIn(uint256 amount)',
@@ -230,55 +135,16 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
           memo: `Buy-in escrow for ${tier.name}`,
         });
 
-        // 2. Set seated state and start yield clock ONLY after transaction resolves successfully
         setActiveTier(tier);
         setBuyInAmount(buyIn);
-        const now = Date.now();
-        setSeatedTimestamp(now);
+        setSeatedTimestamp(Date.now());
         setIsSeated(true);
-
-        // 3. Create fresh table configuration
-        const gameConfig: GameConfig = {
-          tableTier: tier,
-          maxPlayers: tier.maxPlayers || 6,
-          timeBank: 20,
-        };
-
-        // 4. Create Hero and AI opponents
-        const heroAddress = address || '0x71C8394b2A43d5268c70f612d7c0fE668b94f9A';
-        const heroName = nametag ? nametag.replace(/^@/, '') : address ? `Neo_${address.slice(2, 6)}` : 'Satoshi_Hero';
-        const hero: Player = {
-          seatIndex: 0,
-          walletAddress: heroAddress,
-          balance: buyIn,
-          isActive: true,
-          cards: [],
-          currentBet: 0,
-          id: 'hero',
-          name: heroName,
-          address: heroAddress,
-          chips: buyIn,
-          holeCards: [],
-          totalBetInRound: 0,
-          totalBetInHand: 0,
-          hasFolded: false,
-          isFolded: false,
-          isAllIn: false,
-          isConnected: true,
-          tiltLevel: 15,
-        };
-
-        const opponents = generateOpponents(tier, buyIn);
-        const seatedPlayers = [hero, ...opponents];
-
-        // 5. Initialize poker engine and reset tilt meter
         tiltMeter.resetTilt();
-        resetGame(gameConfig, seatedPlayers);
 
         showToast({
           type: 'success',
-          title: 'Table Seated',
-          message: `Welcome to ${tier.name}! Good luck on the felt.`,
+          title: 'Table Seated (Online)',
+          message: `Connected to ${tier.name}. Waiting for network players...`,
         });
       } catch (err) {
         console.warn('[joinTable] Escrow lock cancelled or failed:', err);
@@ -287,11 +153,11 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
         setIsActionPending(false);
       }
     },
-    [address, nametag, promptTransaction, resetGame, tiltMeter, isWalletBusy, isActionPending, showToast]
+    [promptTransaction, tiltMeter, isWalletBusy, isActionPending, showToast]
   );
 
   /**
-   * Leave table: settles current chip stack + accumulated yield back to wallet ONLY AFTER SUCCESS
+   * Real Network Table Leave: settles chip balance back to Unicity wallet
    */
   const leaveTable = useCallback(async (): Promise<number> => {
     if (isWalletBusy || isActionPending) {
@@ -308,11 +174,10 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
 
     setIsActionPending(true);
     try {
-      // 1. Prompt Unicity Wallet Settlement Modal
       await promptTransaction({
         type: 'settle_escrow',
         title: 'Sign Escrow Settlement & Cash Out',
-        tableName: activeTier?.name || 'Table 2 (Low)',
+        tableName: activeTier?.name || 'Live Table',
         contractAddress: APP_CONFIG.tableFactoryAddress,
         method: 'settleAndReleaseEscrow(address,uint256,uint256)',
         amount: finalChips,
@@ -321,7 +186,6 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
         memo: 'Release table escrow and claim staking yields',
       });
 
-      // 2. Return chips & yield to player's wallet balance ONLY AFTER confirmed settlement
       if (totalSettlement > 0) {
         depositYield(totalSettlement);
       }
@@ -335,100 +199,29 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       showToast({
         type: 'success',
         title: 'Table Left & Settled',
-        message: `Successfully cashed out ${totalSettlement} UCT to your wallet.`,
+        message: `Settled ${totalSettlement} UCT directly to your Unicity Testnet balance.`,
       });
 
       return totalSettlement;
     } catch (err) {
-      console.warn('[leaveTable] Escrow settlement cancelled or failed:', err);
+      console.warn('[leaveTable] Settlement cancelled or failed:', err);
       throw err;
     } finally {
       setIsActionPending(false);
     }
   }, [heroPlayer, yieldEarned, activeTier, promptTransaction, depositYield, tiltMeter, isWalletBusy, isActionPending, showToast]);
 
-  /**
-   * Perform action as hero: guards against spam / concurrent requests
-   */
   const performAction = useCallback(
-    (actionInput: PlayerAction | ActionType | ActionPayload, amount?: number) => {
-      if (isActionPending || isWalletBusy) {
-        return;
-      }
-
-      let rawAction = '';
-      let actionAmount = amount;
-
-      if (typeof actionInput === 'object' && 'type' in actionInput) {
-        rawAction = actionInput.type;
-        actionAmount = actionInput.amount ?? amount;
-      } else {
-        rawAction = String(actionInput);
-      }
-
-      // Record voluntary or aggressive behavior on hero's tilt meter
-      tiltMeter.recordAction(rawAction, actionAmount);
-
-      // Delegate to poker engine
-      handleAction(actionInput, amount);
+    async (actionInput: ActionPayload) => {
+      if (isActionPending || isWalletBusy) return;
+      tiltMeter.recordAction(actionInput.type, actionInput.amount);
+      await handleAction(actionInput);
     },
     [handleAction, tiltMeter, isActionPending, isWalletBusy]
   );
 
-  /**
-   * Dynamically seat a player at an empty seat.
-   */
-  const seatPlayerAt = useCallback(
-    (seatIndex: number, name?: string, avatar?: string) => {
-      const tier = activeTier || DEFAULT_TIER;
-      const buyIn = buyInAmount || tier.buyInMin * 2;
-
-      // Check if seat is already occupied
-      const occupied = players.some((p) => p && p.seatIndex === seatIndex);
-      if (occupied) return;
-
-      const usedIds = new Set(players.map((p) => p.id));
-      const nextBot = AI_ROSTER.find((b) => !usedIds.has(b.id)) || {
-        id: `player-${Date.now()}`,
-        name: name || `Player_${seatIndex + 1}`,
-        avatar: avatar || '🎲',
-        tiltLevel: 20,
-      };
-
-      const variance = (Math.random() * 0.2 - 0.1) * buyIn;
-      const chips = Math.max(tier.buyInMin, +(buyIn + variance).toFixed(2));
-      const walletAddress = `0xBot_${nextBot.id.replace(/[^a-zA-Z0-9]/g, '')}_${seatIndex}`.padEnd(42, '0');
-
-      const newPlayer: Player = {
-        seatIndex,
-        walletAddress,
-        balance: chips,
-        isActive: true,
-        cards: [],
-        currentBet: 0,
-        id: nextBot.id,
-        name: name || nextBot.name,
-        avatar: avatar || nextBot.avatar,
-        chips,
-        holeCards: [],
-        totalBetInRound: 0,
-        totalBetInHand: 0,
-        hasFolded: false,
-        isFolded: false,
-        isAllIn: false,
-        isConnected: true,
-        tiltLevel: nextBot.tiltLevel,
-      };
-
-      addPlayer(newPlayer);
-    },
-    [activeTier, buyInAmount, players, addPlayer]
-  );
-
-  // Total real-time value: Hero's table chips + earned staking yield
   const totalChipValue = heroPlayer ? +(heroPlayer.chips + yieldEarned).toFixed(4) : 0;
 
-  // Enhance tableState with live yieldEarned and active tier
   const augmentedTableState: TableState = useMemo(() => {
     return {
       ...tableState,
@@ -436,16 +229,16 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       yieldEarned,
       players: tableState.players.map((p) => {
         if (!p) return null;
-        if (p.id === 'hero') {
+        if (p.id === 'hero' || (address && p.walletAddress?.toLowerCase() === address.toLowerCase())) {
           return {
             ...p,
             tiltLevel: tiltMeter.tiltLevel,
           };
         }
         return p;
-      }),
+      }) as Player[],
     };
-  }, [tableState, activeTier, yieldEarned, tiltMeter.tiltLevel]);
+  }, [tableState, activeTier, yieldEarned, tiltMeter.tiltLevel, address]);
 
   const value: GameContextValue = {
     isSeated,
@@ -470,6 +263,7 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     yieldRate,
     totalChipValue,
     tiltMeter,
+    isOnlineRelayConnected,
     joinTable,
     leaveTable,
     performAction,
@@ -480,9 +274,6 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
 };
 
-/**
- * useGame Hook
- */
 export function useGame(): GameContextValue {
   const context = useContext(GameContext);
   if (!context) {
