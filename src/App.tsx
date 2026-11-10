@@ -9,7 +9,7 @@ import { LandscapePrompt } from './components/LandscapePrompt';
 import type { TableTier, ActionPayload } from './engine/types.ts';
 
 function PokerAppContent() {
-  const { address, isConnected, connectWallet, disconnectWallet } = useWallet();
+  const { address, isConnected, connectWallet, openConnectModal, disconnectWallet } = useWallet();
   const {
     isSeated,
     tableState,
@@ -23,9 +23,13 @@ function PokerAppContent() {
 
   const handleConnectWallet = async () => {
     try {
-      await connectWallet();
+      const addr = await connectWallet();
+      if (!addr) {
+        openConnectModal();
+      }
     } catch (err) {
       console.warn('Wallet connection cancelled or failed:', err);
+      openConnectModal();
     }
   };
 

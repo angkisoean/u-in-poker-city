@@ -15,11 +15,6 @@ export const UnicityConnectModal: React.FC<UnicityConnectModalProps> = ({
   onConnect,
   isConnecting = false,
 }) => {
-  const [selectedMethod, setSelectedMethod] = useState<'extension' | 'web_wallet'>('extension');
-  const [nametag, setNametag] = useState<string>('');
-  const [network, setNetwork] = useState<'testnet' | 'mainnet'>('testnet');
-  const [isApproving, setIsApproving] = useState<boolean>(false);
-
   // Check if window.sphere or window.unicity extension is injected in the browser
   const hasInjectedSphere =
     typeof window !== 'undefined' &&
@@ -27,6 +22,24 @@ export const UnicityConnectModal: React.FC<UnicityConnectModalProps> = ({
       (window as unknown as { sphere?: unknown; unicity?: unknown }).sphere ||
       (window as unknown as { sphere?: unknown; unicity?: unknown }).unicity
     );
+
+  const [selectedMethod, setSelectedMethod] = useState<'extension' | 'web_wallet'>(
+    hasInjectedSphere ? 'extension' : 'web_wallet'
+  );
+  const [nametag, setNametag] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('unicity_sphere_poker_wallet_session_v4');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.nametag) return parsed.nametag;
+      }
+    } catch {
+      // ignore
+    }
+    return '';
+  });
+  const [network, setNetwork] = useState<'testnet' | 'mainnet'>('testnet');
+  const [isApproving, setIsApproving] = useState<boolean>(false);
 
   const handleApprove = async () => {
     try {
