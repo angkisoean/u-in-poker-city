@@ -222,7 +222,7 @@ export const Landing: React.FC<LandingProps> = ({
 
           <div className="flex items-center gap-2 text-[11px] font-mono text-zinc-400">
             <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
-            <span>Sphere Connect v2.4 • 25,000 Free Testnet UCT automatically provided</span>
+            <span>Sphere Connect v2.4 • Direct Extension Handshake • Real-Time On-Chain Balance</span>
           </div>
         </motion.div>
       </main>

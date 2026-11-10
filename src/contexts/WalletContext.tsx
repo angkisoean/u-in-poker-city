@@ -61,6 +61,7 @@ export interface WalletContextValue extends WalletState {
   connectWallet: (customNametag?: string) => Promise<string>;
   disconnectWallet: () => Promise<void>;
   getBalance: () => Promise<number>;
+  refreshBalance: () => Promise<number>;
   sendTransaction: (to: string, amount: number, memo?: string) => Promise<string>;
   promptTransaction: (options: PromptTransactionOptions) => Promise<string>;
   signMessage: (message: string) => Promise<string>;
@@ -74,6 +75,100 @@ const WalletContext = createContext<WalletContextValue | undefined>(undefined);
 
 export interface WalletProviderProps {
   children: ReactNode;
+}
+
+function normalizeBalanceUnit(val: number): number {
+  if (!isFinite(val) || val <= 0) return 0;
+  if (val >= 1e14) {
+    return +(val / 1e18).toFixed(4);
+  }
+  if (val >= 1e8) {
+    return +(val / 1e8).toFixed(4);
+  }
+  return +val.toFixed(4);
+}
+
+function parseRawBalance(raw: unknown): number {
+  if (raw === null || raw === undefined) return 0;
+
+  if (typeof raw === 'number') {
+    return normalizeBalanceUnit(raw);
+  }
+
+  if (typeof raw === 'string') {
+    const cleaned = raw.replace(/,/g, '').trim();
+    const num = Number(cleaned);
+    if (!isNaN(num)) return normalizeBalanceUnit(num);
+  }
+
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (!item) continue;
+      const sym = (item.symbol || item.coinId || item.name || item.asset || item.id || '').toString().toUpperCase();
+      if (sym.includes('UCT') || sym.includes('UNI') || sym === 'COIN' || sym === '' || item.isNative) {
+        const val = parseRawBalance(item.balance ?? item.total ?? item.amount ?? item.confirmed ?? item.value);
+        if (val > 0) return val;
+      }
+    }
+    if (raw.length > 0 && typeof raw[0] === 'object') {
+      const first = raw[0];
+      const val = parseRawBalance(first.balance ?? first.total ?? first.amount ?? first.confirmed ?? first.value);
+      if (val > 0) return val;
+    }
+    return 0;
+  }
+
+  if (typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>;
+
+    if (obj.balance !== undefined && obj.balance !== null) {
+      const val = parseRawBalance(obj.balance);
+      if (val > 0) return val;
+    }
+    if (obj.total !== undefined && obj.total !== null) {
+      const val = parseRawBalance(obj.total);
+      if (val > 0) return val;
+    }
+    if (obj.confirmed !== undefined && obj.confirmed !== null) {
+      const val = parseRawBalance(obj.confirmed);
+      if (val > 0) return val;
+    }
+    if (obj.amount !== undefined && obj.amount !== null) {
+      const val = parseRawBalance(obj.amount);
+      if (val > 0) return val;
+    }
+    if (obj.uct !== undefined && obj.uct !== null) {
+      const val = parseRawBalance(obj.uct);
+      if (val > 0) return val;
+    }
+    if (obj.result !== undefined && obj.result !== null) {
+      const val = parseRawBalance(obj.result);
+      if (val > 0) return val;
+    }
+    if (obj.data !== undefined && obj.data !== null) {
+      const val = parseRawBalance(obj.data);
+      if (val > 0) return val;
+    }
+
+    if (Array.isArray(obj.coins)) {
+      const val = parseRawBalance(obj.coins);
+      if (val > 0) return val;
+    }
+    if (Array.isArray(obj.tokens)) {
+      const val = parseRawBalance(obj.tokens);
+      if (val > 0) return val;
+    }
+    if (Array.isArray(obj.balances)) {
+      const val = parseRawBalance(obj.balances);
+      if (val > 0) return val;
+    }
+    if (Array.isArray(obj.assets)) {
+      const val = parseRawBalance(obj.assets);
+      if (val > 0) return val;
+    }
+  }
+
+  return 0;
 }
 
 export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
@@ -108,7 +203,19 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     return '';
   });
 
-  const [balance, setBalance] = useState<number>(0);
+  const [balance, setBalance] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return Number(parsed.balance) || 0;
+      }
+    } catch {
+      // ignore
+    }
+    return 0;
+  });
+
   const [isConnected, setIsConnected] = useState<boolean>(() => Boolean(address));
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -133,46 +240,99 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     if (address && isConnected) {
       localStorage.setItem(
         STORAGE_KEY,
-        JSON.stringify({ address, nametag, isConnected: true })
+        JSON.stringify({ address, nametag, balance, isConnected: true })
       );
-    } else {
+    } else if (!isConnected && !address) {
       localStorage.removeItem(STORAGE_KEY);
     }
-  }, [address, nametag, isConnected]);
+  }, [address, nametag, balance, isConnected]);
 
   /**
    * REAL-TIME SDK BALANCE FETCHER
    */
   const fetchLiveBalance = useCallback(async (client?: ConnectClient | null): Promise<number> => {
-    const activeClient = client || sphereClientRef.current;
+    let activeClient = client || sphereClientRef.current;
 
-    // Check window.sphere direct API if injected
+    // 1. Direct window.sphere inspection
     if (typeof window !== 'undefined') {
-      const win = window as unknown as { sphere?: { getBalance?: () => Promise<number | string>; request?: (args: { method: string }) => Promise<unknown> } };
-      if (win.sphere?.getBalance && typeof win.sphere.getBalance === 'function') {
-        try {
-          const directBal = await win.sphere.getBalance();
-          const parsed = Number(directBal) || 0;
-          setBalance(parsed);
-          return parsed;
-        } catch (e) {
-          console.debug('[Sphere Window Direct] getBalance error:', e);
+      const win = window as unknown as {
+        sphere?: {
+          balance?: number | string;
+          getBalance?: () => Promise<number | string>;
+          getAccount?: () => Promise<unknown>;
+          request?: (args: { method: string }) => Promise<unknown>;
+        };
+      };
+      if (win.sphere) {
+        if (win.sphere.balance !== undefined && win.sphere.balance !== null) {
+          const direct = parseRawBalance(win.sphere.balance);
+          if (direct > 0) {
+            setBalance(direct);
+            return direct;
+          }
+        }
+        if (typeof win.sphere.getBalance === 'function') {
+          try {
+            const res = await win.sphere.getBalance();
+            const direct = parseRawBalance(res);
+            if (direct > 0) {
+              setBalance(direct);
+              return direct;
+            }
+          } catch {
+            // ignore
+          }
+        }
+        if (typeof win.sphere.getAccount === 'function') {
+          try {
+            const acc = await win.sphere.getAccount();
+            const direct = parseRawBalance(acc);
+            if (direct > 0) {
+              setBalance(direct);
+              return direct;
+            }
+          } catch {
+            // ignore
+          }
+        }
+        if (typeof win.sphere.request === 'function') {
+          try {
+            const req = await win.sphere.request({ method: 'sphere_getBalance' });
+            const direct = parseRawBalance(req);
+            if (direct > 0) {
+              setBalance(direct);
+              return direct;
+            }
+          } catch {
+            // ignore
+          }
         }
       }
-      if (win.sphere?.request && typeof win.sphere.request === 'function') {
+    }
+
+    // 2. If no active client yet, try silent autoConnect handshake
+    if (!activeClient || !activeClient.isConnected) {
+      if (typeof window !== 'undefined') {
         try {
-          const reqBal = await win.sphere.request({ method: 'sphere_getBalance' });
-          if (typeof reqBal === 'number') {
-            setBalance(reqBal);
-            return reqBal;
+          const autoRes = await autoConnect({
+            dapp: {
+              name: 'U IN POKER CITY',
+              url: window.location.origin,
+              description: 'Online Multiplayer Texas Holdem on Unicity Network',
+            },
+            network: TARGET_SPHERE_NETWORK,
+            permissions: [...ALL_PERMISSIONS],
+            walletUrl: 'https://sphere.unicity.network',
+            silent: true,
+            timeout: 5000,
+          });
+          if (autoRes?.client) {
+            sphereClientRef.current = autoRes.client;
+            activeConnectionRef.current = autoRes;
+            activeClient = autoRes.client;
           }
-          if (reqBal && typeof reqBal === 'object' && 'balance' in reqBal) {
-            const parsed = Number((reqBal as { balance: string | number }).balance) || 0;
-            setBalance(parsed);
-            return parsed;
-          }
-        } catch (e) {
-          console.debug('[Sphere Window Request] sphere_getBalance error:', e);
+        } catch {
+          // silent connect unavailable
         }
       }
     }
@@ -182,50 +342,128 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     }
 
     try {
-      const raw = await activeClient.query<{ balance?: number | string; confirmed?: number | string; total?: number | string; amount?: number | string } | number>(
-        RPC_METHODS.GET_BALANCE
-      );
+      // 3. Query Sphere SDK RPC_METHODS.GET_BALANCE
+      let raw = await activeClient.query(RPC_METHODS.GET_BALANCE).catch(() => null);
+      if (!raw && address) {
+        raw = await activeClient.query(RPC_METHODS.GET_BALANCE, { address }).catch(() => null);
+      }
+      let parsed = parseRawBalance(raw);
 
-      let parsedBalance = 0;
-      if (typeof raw === 'number') {
-        parsedBalance = raw;
-      } else if (raw && typeof raw === 'object') {
-        if ('balance' in raw) parsedBalance = Number(raw.balance) || 0;
-        else if ('confirmed' in raw) parsedBalance = Number(raw.confirmed) || 0;
-        else if ('total' in raw) parsedBalance = Number(raw.total) || 0;
-        else if ('amount' in raw) parsedBalance = Number(raw.amount) || 0;
+      // 4. Query GET_TOKENS fallback
+      if (parsed <= 0) {
+        const tokensRaw = await activeClient.query(RPC_METHODS.GET_TOKENS).catch(() => null);
+        parsed = parseRawBalance(tokensRaw);
       }
 
-      // Convert from base units if SDK returns satoshis / wei scale (e.g. 10^8 or 10^18)
-      if (parsedBalance > 1_000_000_000_000) {
-        parsedBalance = +(parsedBalance / 1e18).toFixed(4);
-      } else if (parsedBalance > 100_000_000 && parsedBalance % 100_000_000 === 0) {
-        parsedBalance = +(parsedBalance / 1e8).toFixed(4);
+      // 5. Query GET_ASSETS fallback
+      if (parsed <= 0) {
+        const assetsRaw = await activeClient.query(RPC_METHODS.GET_ASSETS).catch(() => null);
+        parsed = parseRawBalance(assetsRaw);
       }
 
-      setBalance(parsedBalance);
-      return parsedBalance;
-    } catch (err) {
-      console.warn('[Sphere SDK] Live balance query failed:', err);
-      // Fallback query to sphere_getTokens
-      try {
-        const tokensRaw = await activeClient.query<Array<{ symbol?: string; balance?: number | string }>>(
-          RPC_METHODS.GET_TOKENS
-        );
-        if (Array.isArray(tokensRaw)) {
-          const uct = tokensRaw.find((t) => t.symbol?.toUpperCase() === 'UCT');
-          if (uct && uct.balance) {
-            const parsed = Number(uct.balance) || 0;
-            setBalance(parsed);
-            return parsed;
-          }
-        }
-      } catch {
-        // ignore
+      if (parsed > 0) {
+        setBalance(parsed);
+        return parsed;
       }
       return 0;
+    } catch (err) {
+      console.warn('[Sphere SDK] Live balance query failed:', err);
+      return 0;
     }
-  }, []);
+  }, [address]);
+
+  const disconnectWallet = useCallback(async () => {
+    try {
+      if (activeConnectionRef.current) {
+        await activeConnectionRef.current.disconnect();
+      } else if (sphereClientRef.current) {
+        await sphereClientRef.current.disconnect();
+      }
+    } catch {
+      // ignore
+    } finally {
+      sphereClientRef.current = null;
+      activeConnectionRef.current = null;
+      setAddress(null);
+      setChainPubkey(null);
+      setNametag('');
+      setBalance(0);
+      setIsConnected(false);
+      setError(null);
+      localStorage.removeItem(STORAGE_KEY);
+
+      showToast({
+        type: 'info',
+        title: 'Wallet Disconnected',
+        message: 'Disconnected from Unicity Network.',
+      });
+    }
+  }, [showToast]);
+
+  /**
+   * SILENT RECONNECT & SESSION RESTORE ON MOUNT
+   */
+  useEffect(() => {
+    let active = true;
+
+    const restoreSession = async () => {
+      if (!address) return;
+
+      try {
+        const result = await autoConnect({
+          dapp: {
+            name: 'U IN POKER CITY',
+            url: typeof window !== 'undefined' ? window.location.origin : 'https://poker.unicity.network',
+            description: 'Online Multiplayer Texas Holdem on Unicity Network',
+          },
+          network: TARGET_SPHERE_NETWORK,
+          permissions: [...ALL_PERMISSIONS],
+          walletUrl: 'https://sphere.unicity.network',
+          silent: true,
+          timeout: 8000,
+        });
+
+        if (!active) return;
+        sphereClientRef.current = result.client;
+        activeConnectionRef.current = result;
+
+        const id = result.connection.identity;
+        const resolvedAddress = id.directAddress || id.chainPubkey;
+        if (resolvedAddress) setAddress(resolvedAddress);
+        if (id.chainPubkey) setChainPubkey(id.chainPubkey);
+        if (id.nametag) setNametag(id.nametag);
+        setIsConnected(true);
+        setHasWallet(true);
+
+        await fetchLiveBalance(result.client);
+
+        result.client.on(WALLET_EVENTS.IDENTITY_CHANGED, (data: unknown) => {
+          const newId = data as PublicIdentity;
+          if (newId) {
+            const nextAddr = newId.directAddress || newId.chainPubkey;
+            if (nextAddr) setAddress(nextAddr);
+            if (newId.nametag) setNametag(newId.nametag);
+            fetchLiveBalance(result.client);
+          }
+        });
+
+        result.client.on(WALLET_EVENTS.DISCONNECTED, () => {
+          disconnectWallet();
+        });
+      } catch (err) {
+        console.debug('[Sphere SDK] Silent handshake unavailable:', err);
+        if (active) {
+          fetchLiveBalance();
+        }
+      }
+    };
+
+    restoreSession();
+
+    return () => {
+      active = false;
+    };
+  }, [address, disconnectWallet, fetchLiveBalance]);
 
   /**
    * Auto-refresh balance on interval when connected
@@ -322,34 +560,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     },
     [fetchLiveBalance, showToast]
   );
-
-  const disconnectWallet = useCallback(async () => {
-    try {
-      if (activeConnectionRef.current) {
-        await activeConnectionRef.current.disconnect();
-      } else if (sphereClientRef.current) {
-        await sphereClientRef.current.disconnect();
-      }
-    } catch {
-      // ignore
-    } finally {
-      sphereClientRef.current = null;
-      activeConnectionRef.current = null;
-      setAddress(null);
-      setChainPubkey(null);
-      setNametag('');
-      setBalance(0);
-      setIsConnected(false);
-      setError(null);
-      localStorage.removeItem(STORAGE_KEY);
-
-      showToast({
-        type: 'info',
-        title: 'Wallet Disconnected',
-        message: 'Disconnected from Unicity Network.',
-      });
-    }
-  }, [showToast]);
 
   const getBalance = useCallback(async (): Promise<number> => {
     return fetchLiveBalance();
@@ -621,6 +831,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     connectWallet,
     disconnectWallet,
     getBalance,
+    refreshBalance: fetchLiveBalance,
     sendTransaction,
     promptTransaction,
     signMessage,
