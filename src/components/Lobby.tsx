@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { TableTier } from '../engine/types.ts';
 import { useWallet } from '../contexts/WalletContext';
 import { useGame } from '../contexts/GameContext';
 import { UnicityBrandBadge } from './UnicityBrandBadge.tsx';
+import { pokerNetwork } from '../network/pokerNetworkRelay';
 
 export interface LobbyProps {
   walletAddress?: string;
@@ -213,7 +214,93 @@ export const Lobby: React.FC<LobbyProps> = ({
     }
   };
 
-  const activeDistrictTables = viewingDistrict ? generateDistrictTables(viewingDistrict) : [];
+  const [liveOccupancyMap, setLiveOccupancyMap] = useState<Record<string, { count: number; status: 'In Hand' | 'Waiting'; avgPot: number }>>({});
+
+  // Subscribe to live network table occupancy events
+  useEffect(() => {
+    pokerNetwork.connect();
+    pokerNetwork.requestActiveTables();
+
+    const unsubTables = pokerNetwork.on('ACTIVE_TABLES_UPDATE', (data: unknown) => {
+      const update = data as Record<string, { count: number; status: 'In Hand' | 'Waiting'; avgPot: number }>;
+      if (update && typeof update === 'object') {
+        setLiveOccupancyMap((prev) => ({ ...prev, ...update }));
+      }
+    });
+
+    const unsubState = pokerNetwork.on('TABLE_STATE_SYNC', (data: unknown) => {
+      const sync = data as { tableId: string; players: (unknown | null)[]; pot: number };
+      if (sync && sync.tableId) {
+        const seatedCount = Array.isArray(sync.players) ? sync.players.filter(Boolean).length : 0;
+        setLiveOccupancyMap((prev) => ({
+          ...prev,
+          [sync.tableId]: {
+            count: seatedCount,
+            status: seatedCount >= 2 ? 'In Hand' : 'Waiting',
+            avgPot: sync.pot || 0,
+          },
+        }));
+      }
+    });
+
+    const unsubJoin = pokerNetwork.on('PLAYER_JOINED', (data: unknown) => {
+      const payload = data as { tableId?: string };
+      if (payload?.tableId) {
+        setLiveOccupancyMap((prev) => {
+          const current = prev[payload.tableId!] || { count: 0, status: 'Waiting', avgPot: 0 };
+          const nextCount = Math.min(6, current.count + 1);
+          return {
+            ...prev,
+            [payload.tableId!]: {
+              ...current,
+              count: nextCount,
+              status: nextCount >= 2 ? 'In Hand' : 'Waiting',
+            },
+          };
+        });
+      }
+    });
+
+    const unsubLeft = pokerNetwork.on('PLAYER_LEFT', (data: unknown) => {
+      const payload = data as { tableId?: string };
+      if (payload?.tableId) {
+        setLiveOccupancyMap((prev) => {
+          const current = prev[payload.tableId!] || { count: 0, status: 'Waiting', avgPot: 0 };
+          const nextCount = Math.max(0, current.count - 1);
+          return {
+            ...prev,
+            [payload.tableId!]: {
+              ...current,
+              count: nextCount,
+              status: nextCount >= 2 ? 'In Hand' : 'Waiting',
+            },
+          };
+        });
+      }
+    });
+
+    return () => {
+      unsubTables();
+      unsubState();
+      unsubJoin();
+      unsubLeft();
+    };
+  }, []);
+
+  const activeDistrictTables = viewingDistrict
+    ? generateDistrictTables(viewingDistrict).map((t) => {
+        const live = liveOccupancyMap[t.id];
+        if (live) {
+          return {
+            ...t,
+            playersCount: live.count,
+            status: live.status,
+            avgPot: live.avgPot,
+          };
+        }
+        return t;
+      })
+    : [];
   const isInsufficient = selectedSubTable ? buyInAmount > walletBalance : false;
 
   return (
