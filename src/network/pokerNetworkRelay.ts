@@ -116,6 +116,8 @@ class PokerNetworkRelay {
   public leaveTable(tableId?: string): void {
     const tid = tableId || this.currentTableId;
     if (tid && this.socket && this.socket.connected) {
+      // Auto-fold in flight so other players continue instantly without waiting
+      this.socket.emit('PLAYER_ACTION', { tableId: tid, action: { type: 'fold' } });
       this.socket.emit('LEAVE_TABLE', { tableId: tid });
     }
     this.currentTableId = null;

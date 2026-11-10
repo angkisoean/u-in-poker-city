@@ -5,6 +5,7 @@ import { useWallet } from '../contexts/WalletContext';
 import { useGame } from '../contexts/GameContext';
 import { UnicityBrandBadge } from './UnicityBrandBadge.tsx';
 import { pokerNetwork } from '../network/pokerNetworkRelay';
+import { useNetworkStats } from '../hooks/useNetworkStats.ts';
 
 export interface LobbyProps {
   walletAddress?: string;
@@ -169,6 +170,7 @@ export const Lobby: React.FC<LobbyProps> = ({
 }) => {
   const wallet = useWallet();
   const game = useGame();
+  const networkStats = useNetworkStats();
 
   const walletAddress = propWalletAddress ?? wallet.address ?? '0x71C8394b2A43d5268c70f612d7c0fE668b94f9A';
   const walletBalance = propWalletBalance ?? wallet.balance;
@@ -413,7 +415,9 @@ export const Lobby: React.FC<LobbyProps> = ({
                   Live Districts
                 </span>
                 <span className="text-zinc-500 text-xs">•</span>
-                <span className="text-zinc-400 text-xs font-mono">40 Tables Online</span>
+                <span className="text-zinc-400 text-xs font-mono">
+                  {networkStats.activeTablesCount} Tables Online ({networkStats.totalPlayers.toLocaleString()} Seated)
+                </span>
               </div>
               <h2 className="poker-title-stroke text-2xl sm:text-3xl tracking-tight uppercase">
                 AVAILABLE <span className="text-white">DISTRICTS</span>

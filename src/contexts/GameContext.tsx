@@ -157,7 +157,7 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   );
 
   /**
-   * Real Network Table Leave: settles chip balance back to Unicity wallet
+   * Real Network Table Leave / Stand Out: auto-folds active cards and settles chip balance back to Unicity wallet
    */
   const leaveTable = useCallback(async (): Promise<number> => {
     if (isWalletBusy || isActionPending) {
@@ -167,6 +167,15 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
         message: 'Please wait for current operation to finish.',
       });
       return 0;
+    }
+
+    // Auto-fold immediately if in hand so other players proceed without waiting
+    if (heroPlayer && !heroPlayer.hasFolded && heroPlayer.holeCards && heroPlayer.holeCards.length > 0) {
+      try {
+        await handleAction({ type: 'fold' });
+      } catch (e) {
+        console.debug('[leaveTable] Auto-fold notice:', e);
+      }
     }
 
     const finalChips = heroPlayer ? heroPlayer.chips : 0;

@@ -252,6 +252,18 @@ export const PokerTable: React.FC<PokerTableProps> = ({
   const smallBlind = propTableState?.tier?.smallBlind ?? 5.0;
   const bigBlind = propTableState?.tier?.bigBlind ?? 10.0;
 
+  // Stand Out action: immediately auto-folds hand so other players proceed without waiting
+  const handleStandOut = () => {
+    if (heroPlayer && !heroPlayer.hasFolded && heroPlayer.holeCards && heroPlayer.holeCards.length > 0) {
+      if (onAction) {
+        onAction({ type: 'fold' });
+      }
+    }
+    if (onStandUp) {
+      onStandUp();
+    }
+  };
+
   return (
     <div
       className={`h-screen max-h-screen w-full bg-[#08090B] text-zinc-100 flex flex-col justify-between select-none relative overflow-hidden ${className}`}
@@ -313,15 +325,26 @@ export const PokerTable: React.FC<PokerTableProps> = ({
             </span>
           </div>
 
-          {onStandUp && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={onStandUp}
-              className="py-1.5 px-3 rounded-xl bg-zinc-900 hover:bg-red-500/15 text-zinc-400 hover:text-red-400 border border-zinc-800 hover:border-red-500/30 text-xs font-sans font-medium transition-all duration-200 cursor-pointer flex items-center gap-1.5"
-              title="Leave table and settle escrow to wallet"
+              onClick={handleStandOut}
+              className="py-1.5 px-3 rounded-xl bg-gradient-to-r from-orange-500/20 to-amber-500/20 hover:from-orange-500/30 hover:to-amber-500/30 text-orange-400 hover:text-orange-300 border border-orange-500/40 text-xs font-sans font-bold transition-all duration-200 cursor-pointer flex items-center gap-1.5 shadow-[0_0_15px_rgba(255,107,0,0.2)]"
+              title="Automatically fold current hand and stand out so table does not wait"
             >
-              <span>Leave</span>
+              <span>🚶</span>
+              <span>Stand Out</span>
             </button>
-          )}
+
+            {onStandUp && (
+              <button
+                onClick={onStandUp}
+                className="py-1.5 px-2.5 rounded-xl bg-zinc-900 hover:bg-red-500/15 text-zinc-400 hover:text-red-400 border border-zinc-800 hover:border-red-500/30 text-xs font-sans font-medium transition-all duration-200 cursor-pointer flex items-center gap-1"
+                title="Leave table and settle escrow to wallet"
+              >
+                <span>Leave</span>
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
