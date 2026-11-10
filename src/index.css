@@ -1,0 +1,179 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+  --font-vintage: 'Cinzel', Georgia, serif;
+  --font-cyber: 'Plus Jakarta Sans', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --color-unicity-orange: #FF6B00;
+  --color-unicity-amber: #FF8533;
+  --color-obsidian: #08090B;
+  --color-slate-table: #101216;
+  --color-card-surface: #16191F;
+}
+
+:root {
+  --color-unicity-orange: #FF6B00;
+  --color-unicity-amber: #FF8533;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Plus Jakarta Sans', sans-serif;
+  --font-vintage: 'Cinzel', Georgia, serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #08090B;
+  color: #F4F4F5;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  letter-spacing: -0.01em;
+  overflow-x: hidden;
+  min-height: 100vh;
+  background-image: 
+    radial-gradient(circle at 50% 12%, rgba(255, 107, 0, 0.04) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(255, 107, 0, 0.02) 0%, transparent 40%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Typography Scale */
+.font-display {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.font-cyber {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.font-vintage {
+  font-family: 'Cinzel', Georgia, serif;
+  letter-spacing: 0.14em;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Retro-Modern Poker Title with Bold Outline (as in user reference) */
+.poker-title-stroke {
+  font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+  font-weight: 900;
+  color: #FF6B00;
+  -webkit-text-stroke: 2px #000000;
+  text-shadow: 
+    2px 2px 0 #000,
+    -2px -2px 0 #000,
+    2px -2px 0 #000,
+    -2px 2px 0 #000,
+    0 4px 20px rgba(255, 107, 0, 0.5);
+}
+
+.poker-vintage-gold {
+  font-family: 'Cinzel', Georgia, serif;
+  color: #FFC043;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+  text-shadow: 0 2px 12px rgba(255, 192, 67, 0.45);
+}
+
+/* Authentic Red & Gold Casino Diamond Lattice Card Back */
+.poker-red-lattice {
+  background-color: #6E1217;
+  background-image: 
+    linear-gradient(45deg, rgba(235, 195, 130, 0.35) 1px, transparent 1px),
+    linear-gradient(-45deg, rgba(235, 195, 130, 0.35) 1px, transparent 1px),
+    linear-gradient(45deg, transparent 9px, rgba(120, 20, 25, 0.8) 9px, rgba(120, 20, 25, 0.8) 11px, transparent 11px),
+    linear-gradient(-45deg, transparent 9px, rgba(120, 20, 25, 0.8) 9px, rgba(120, 20, 25, 0.8) 11px, transparent 11px);
+  background-size: 16px 16px;
+}
+
+/* Glassmorphism primitives */
+.glass-panel {
+  background: rgba(22, 25, 31, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.glass-panel-subtle {
+  background: rgba(16, 18, 22, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-panel-elevated {
+  background: rgba(22, 25, 31, 0.95);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 107, 0, 0.3);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 25px rgba(255, 107, 0, 0.12);
+}
+
+/* Range Slider */
+input[type=range].poker-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.08);
+  height: 5px;
+  border-radius: 4px;
+  outline: none;
+}
+
+input[type=range].poker-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #FF6B00;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(255, 107, 0, 0.8);
+  border: 2px solid #FFFFFF;
+  transition: transform 0.1s ease;
+}
+
+input[type=range].poker-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+/* Minimalist scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(8, 9, 11, 0.8);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 107, 0, 0.2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 107, 0, 0.4);
+}
