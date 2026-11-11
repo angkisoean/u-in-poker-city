@@ -67,7 +67,7 @@ export const UnicityWalletModal: React.FC<UnicityWalletModalProps> = ({
       setTimeout(() => {
         onClose();
         setStep('review');
-      }, 1400);
+      }, 700);
     } catch {
       setStep('rejected');
       setTimeout(() => {

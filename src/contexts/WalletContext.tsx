@@ -466,10 +466,12 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       });
 
       targetClient.on(WALLET_EVENTS.DISCONNECTED, () => {
-        disconnectWallet();
+        console.debug('[Sphere SDK] Remote transport disconnected (popup closed). Session preserved.');
+        // Closing the popup window after signing is expected in browser popup flow.
+        // User remains authenticated until explicit disconnect.
       });
     },
-    [disconnectWallet, fetchLiveBalance]
+    [fetchLiveBalance]
   );
 
   /**
@@ -1135,9 +1137,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         walletAddress={address}
         walletBalance={balance}
         onClose={() => {
-          if (activeTxRequest && activeTxRequest.onReject) {
-            activeTxRequest.onReject();
-          }
           setActiveTxRequest(null);
           setIsProcessing(false);
         }}
