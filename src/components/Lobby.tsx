@@ -376,15 +376,6 @@ export const Lobby: React.FC<LobbyProps> = ({
                 </span>
                 <button
                   type="button"
-                  onClick={() => wallet.claimFaucet?.(5000)}
-                  title="Claim +5,000 Free Testnet UCT Faucet"
-                  className="px-2 py-0.5 rounded-lg bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/30 text-orange-400 hover:text-orange-300 font-mono text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer"
-                >
-                  <span>💧</span>
-                  <span>+5,000</span>
-                </button>
-                <button
-                  type="button"
                   onClick={async () => {
                     if (wallet.refreshBalance) {
                       await wallet.refreshBalance();
@@ -807,22 +798,12 @@ export const Lobby: React.FC<LobbyProps> = ({
 
               {/* Insufficient balance warning */}
               {isInsufficient && (
-                <div className="mb-4 p-3 rounded-2xl bg-red-950/40 border border-red-500/50 text-red-300 text-xs font-mono flex flex-col gap-2">
-                  <div className="flex items-center gap-2">
-                    <span>⚠️</span>
-                    <span>
-                      Insufficient balance. You have {walletBalance.toFixed(2)} UCT in your wallet, but selected{' '}
-                      {buyInAmount} UCT.
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => wallet.claimFaucet?.(Math.max(10000, buyInAmount))}
-                    className="w-full py-1.5 px-3 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/40 text-orange-400 hover:text-orange-300 font-mono text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <span>💧</span>
-                    <span>Claim Free Testnet UCT Faucet (+{Math.max(10000, buyInAmount).toLocaleString()} UCT)</span>
-                  </button>
+                <div className="mb-4 p-3 rounded-2xl bg-red-950/40 border border-red-500/50 text-red-300 text-xs font-mono flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>
+                    Insufficient balance. You have {walletBalance.toFixed(2)} UCT in your wallet, but selected{' '}
+                    {buyInAmount} UCT. Please deposit UCT to your Unicity wallet.
+                  </span>
                 </div>
               )}
 

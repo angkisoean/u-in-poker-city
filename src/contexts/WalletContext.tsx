@@ -72,7 +72,6 @@ export interface WalletContextValue extends WalletState {
   promptTransaction: (options: PromptTransactionOptions) => Promise<string>;
   signMessage: (message: string) => Promise<string>;
   depositYield: (amount: number) => void;
-  claimFaucet: (amount?: number) => Promise<void>;
 }
 
 const STORAGE_KEY = 'unicity_sphere_poker_wallet_session_v4';
@@ -367,19 +366,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     }
 
     if (!activeClient || !activeClient.isConnected) {
-      // If Web ID session, preserve existing balance from state or localStorage
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed.balance && Number(parsed.balance) > 0) {
-            setBalance(Number(parsed.balance));
-            return Number(parsed.balance);
-          }
-        }
-      } catch {
-        // ignore
-      }
       return 0;
     }
 
@@ -710,24 +696,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         setHasWallet(true);
         setIsConnectModalOpen(false);
 
-        // Load existing balance for this Web ID, or grant initial 25,000 Free Testnet UCT starter
-        try {
-          const savedRaw = localStorage.getItem(STORAGE_KEY);
-          let initialBal = 25000;
-          if (savedRaw) {
-            const parsed = JSON.parse(savedRaw);
-            if (parsed.address === resolvedAddress && typeof parsed.balance === 'number') {
-              initialBal = parsed.balance;
-            }
-          }
-          setBalance(initialBal);
-          localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify({ address: resolvedAddress, nametag: cleanTag, balance: initialBal, isConnected: true })
-          );
-        } catch {
-          setBalance(25000);
-        }
+        fetchLiveBalance();
 
         showToast({
           type: 'success',
@@ -1061,83 +1030,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     }
   }, []);
 
-  /**
-   * REAL UNICITY TESTNET FAUCET INTEGRATION
-   */
-  const claimFaucet = useCallback(
-    async (amount: number = 5000): Promise<void> => {
-      if (!isConnected || !address) {
-        showToast({
-          type: 'warning',
-          title: 'Connect Wallet',
-          message: 'Please connect your Unicity wallet to request faucet tokens.',
-        });
-        return;
-      }
-
-      setIsProcessing(true);
-      showToast({
-        type: 'pending',
-        title: 'Requesting Testnet Faucet...',
-        message: `Calling Unicity Testnet Faucet for ${address.slice(0, 6)}...`,
-      });
-
-      try {
-        // Query genuine Unicity Testnet Faucet Endpoint
-        const faucetUrl = `${APP_CONFIG.rpcUrl.replace('/rpc', '')}/faucet`;
-        try {
-          const response = await fetch(faucetUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ address, amount }),
-          });
-          if (!response.ok) {
-            console.warn('[Faucet] Faucet endpoint response not 200, awaiting on-chain indexing.');
-          }
-        } catch (fetchErr) {
-          console.warn('[Faucet] Direct RPC faucet call notice:', fetchErr);
-        }
-
-        // Wait for state transition & refresh genuine balance from Sphere SDK
-        await new Promise((r) => setTimeout(r, 1000));
-        const live = await fetchLiveBalance();
-
-        // If on-chain balance is pending or running in Web ID mode, ensure testnet balance is credited
-        if (live <= 0) {
-          setBalance((prev) => {
-            const next = +(prev + amount).toFixed(2);
-            try {
-              const raw = localStorage.getItem(STORAGE_KEY);
-              const parsed = raw ? JSON.parse(raw) : {};
-              localStorage.setItem(
-                STORAGE_KEY,
-                JSON.stringify({ ...parsed, balance: next, address, isConnected: true })
-              );
-            } catch {
-              // ignore
-            }
-            return next;
-          });
-        }
-
-        showToast({
-          type: 'success',
-          title: 'Faucet Request Submitted',
-          message: `Requested +${amount.toLocaleString()} UCT from Unicity Testnet Faucet.`,
-        });
-      } catch (err) {
-        showToast({
-          type: 'error',
-          title: 'Faucet Request Failed',
-          message: err instanceof Error ? err.message : 'Network error connecting to faucet.',
-        });
-      } finally {
-        setIsProcessing(false);
-      }
-    },
-    [address, isConnected, fetchLiveBalance, showToast]
-  );
-
   const openConnectModal = useCallback(() => {
     setIsConnectModalOpen(true);
   }, []);
@@ -1163,7 +1055,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     promptTransaction,
     signMessage,
     depositYield,
-    claimFaucet,
   };
 
   return (
