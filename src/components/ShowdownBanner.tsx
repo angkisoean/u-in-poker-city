@@ -87,13 +87,37 @@ export const ShowdownBanner: React.FC<ShowdownBannerProps> = ({
           </h3>
 
           <div className="mt-1 flex items-center gap-1.5 font-mono">
-            <span className="text-zinc-400 text-xs">Pot Awarded:</span>
+            <span className="text-zinc-400 text-xs">Total Awarded:</span>
             <span className="text-2xl font-bold text-orange-400 drop-shadow-[0_0_12px_rgba(255,107,0,0.5)]">
               +{totalAmountWon.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
             <span className="text-xs text-orange-400 font-bold">UCT</span>
           </div>
         </div>
+
+        {/* MULTI-POT WINNER BREAKDOWN (MAIN POT & SIDE POTS) */}
+        {winners.length > 1 && (
+          <div className="w-full flex flex-col gap-1.5 p-2.5 rounded-2xl bg-zinc-900/80 border border-white/[0.08] text-xs font-mono">
+            <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-semibold">
+              Pot Distribution Breakdown:
+            </span>
+            {winners.map((w, idx) => {
+              const pPlayer = players.find((p) => p && p.id === w.playerId);
+              const pName = w.playerId === heroPlayerId ? 'You' : (pPlayer?.name || `Player ${idx + 1}`);
+              const label = w.potType === 'side' ? `Side Pot ${w.potIndex ?? 1}` : 'Main Pot';
+              return (
+                <div key={`winner-pot-${idx}`} className="flex justify-between items-center px-2 py-1 rounded bg-black/40 border border-white/[0.04]">
+                  <span className="text-zinc-300 font-medium">
+                    <span className="text-orange-400 font-bold">{label}:</span> {pName}
+                  </span>
+                  <span className="text-orange-400 font-bold">
+                    +{w.amount.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })} UCT
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* PROMINENT WINNING HAND RANK DISPLAY */}
         <div className="w-full py-2.5 px-4 rounded-2xl bg-zinc-900/90 border border-orange-500/40 flex flex-col items-center justify-center gap-1 shadow-inner">

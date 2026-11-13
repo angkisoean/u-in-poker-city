@@ -367,6 +367,19 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     }
 
     if (!activeClient || !activeClient.isConnected) {
+      // If Web ID session, preserve existing balance from state or localStorage
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.balance && Number(parsed.balance) > 0) {
+            setBalance(Number(parsed.balance));
+            return Number(parsed.balance);
+          }
+        }
+      } catch {
+        // ignore
+      }
       return 0;
     }
 
@@ -697,7 +710,24 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         setHasWallet(true);
         setIsConnectModalOpen(false);
 
-        fetchLiveBalance();
+        // Load existing balance for this Web ID, or grant initial 25,000 Free Testnet UCT starter
+        try {
+          const savedRaw = localStorage.getItem(STORAGE_KEY);
+          let initialBal = 25000;
+          if (savedRaw) {
+            const parsed = JSON.parse(savedRaw);
+            if (parsed.address === resolvedAddress && typeof parsed.balance === 'number') {
+              initialBal = parsed.balance;
+            }
+          }
+          setBalance(initialBal);
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({ address: resolvedAddress, nametag: cleanTag, balance: initialBal, isConnected: true })
+          );
+        } catch {
+          setBalance(25000);
+        }
 
         showToast({
           type: 'success',
@@ -1069,8 +1099,26 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         }
 
         // Wait for state transition & refresh genuine balance from Sphere SDK
-        await new Promise((r) => setTimeout(r, 2000));
-        await fetchLiveBalance();
+        await new Promise((r) => setTimeout(r, 1000));
+        const live = await fetchLiveBalance();
+
+        // If on-chain balance is pending or running in Web ID mode, ensure testnet balance is credited
+        if (live <= 0) {
+          setBalance((prev) => {
+            const next = +(prev + amount).toFixed(2);
+            try {
+              const raw = localStorage.getItem(STORAGE_KEY);
+              const parsed = raw ? JSON.parse(raw) : {};
+              localStorage.setItem(
+                STORAGE_KEY,
+                JSON.stringify({ ...parsed, balance: next, address, isConnected: true })
+              );
+            } catch {
+              // ignore
+            }
+            return next;
+          });
+        }
 
         showToast({
           type: 'success',

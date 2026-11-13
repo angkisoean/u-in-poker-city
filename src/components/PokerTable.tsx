@@ -6,6 +6,7 @@ import type {
   ActionPayload,
 } from '../engine/types.ts';
 import { evaluateHand, getRankName } from '../engine/evaluator.ts';
+import { calculateLivePots } from '../engine/pokerEngine.ts';
 import { CommunityCards } from './CommunityCards.tsx';
 import { PlayerSeat } from './PlayerSeat.tsx';
 import { BettingControls } from './BettingControls.tsx';
@@ -197,6 +198,11 @@ export const PokerTable: React.FC<PokerTableProps> = ({
   const smallBlind = propTableState?.tier?.smallBlind ?? 5.0;
   const bigBlind = propTableState?.tier?.bigBlind ?? 10.0;
 
+  const currentPot = gamePhase === 'SHOWDOWN' ? (propTableState?.lastPot ?? pot) : pot;
+  const { mainPot, sidePots } = useMemo(() => {
+    return calculateLivePots(players, currentPot);
+  }, [players, currentPot]);
+
   // Stand Out action: immediately auto-folds hand so other players proceed without waiting
   const handleStandOut = () => {
     if (heroPlayer && !heroPlayer.hasFolded && heroPlayer.holeCards && heroPlayer.holeCards.length > 0) {
@@ -337,10 +343,29 @@ export const PokerTable: React.FC<PokerTableProps> = ({
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_8px_#FF6B00]" />
                 <span className="font-mono text-2xl sm:text-3xl font-bold text-orange-400 tracking-tight drop-shadow-[0_0_15px_rgba(255,107,0,0.3)]">
-                  {(gamePhase === 'SHOWDOWN' ? (propTableState?.lastPot ?? pot) : pot).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {currentPot.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
                 <span className="font-mono text-xs text-orange-400 font-bold">UCT</span>
               </div>
+
+              {/* DYNAMIC MULTI-POT BREAKDOWN (MAIN POT & SIDE POTS) */}
+              {sidePots.length > 0 && (
+                <div className="flex flex-wrap items-center justify-center gap-1.5 max-w-xs mt-1.5">
+                  <div className="px-2.5 py-0.5 rounded-full bg-orange-500/15 border border-orange-500/35 text-[10px] font-mono font-bold text-orange-400 shadow-sm flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                    <span>Main Pot: {mainPot.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })} UCT</span>
+                  </div>
+                  {sidePots.map((sp, idx) => (
+                    <div
+                      key={`sidepot-${idx}`}
+                      className="px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/35 text-[10px] font-mono font-bold text-amber-300 shadow-sm flex items-center gap-1"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                      <span>Side Pot {idx + 1}: {sp.amount.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 2 })} UCT</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* COMMUNITY CARDS */}

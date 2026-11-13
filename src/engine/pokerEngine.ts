@@ -377,6 +377,46 @@ export function calculatePots(context: GameContext): {
 }
 
 /**
+ * Calculates live side pots directly from active players and total pot amount on table.
+ */
+export function calculateLivePots(
+  players: (Player | null)[],
+  totalPot: number = 0
+): { mainPot: number; sidePots: SidePot[]; allPots: SidePot[] } {
+  const activePlayers = players.filter((p): p is Player => Boolean(p));
+  if (activePlayers.length === 0) {
+    return { mainPot: totalPot, sidePots: [], allPots: [] };
+  }
+  return calculatePots({
+    players: activePlayers,
+    communityCards: [],
+    pot: totalPot,
+    sidePots: [],
+    currentBet: 0,
+    dealerIndex: 0,
+    currentPlayerIndex: 0,
+    gameState: GameState.RIVER,
+    deck: [],
+    round: 1,
+    minRaise: 0,
+    lastRaiseBet: 0,
+    smallBlindIndex: 0,
+    bigBlindIndex: 0,
+    config: {
+      tableTier: {
+        name: 'Live',
+        buyInMin: 100,
+        buyInMax: 1000,
+        smallBlind: 5,
+        bigBlind: 10,
+      },
+      maxPlayers: 6,
+      timeBank: 20,
+    },
+  });
+}
+
+/**
  * Evaluates all hands and distributes pots (main + side pots) to winners.
  * Handles split pots and odd chip distribution clockwise from dealer button.
  */
